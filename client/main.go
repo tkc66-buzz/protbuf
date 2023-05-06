@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"protobuf/pb"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -20,7 +22,8 @@ func main() {
 
 	client := pb.NewFileServiceClient(conn)
 	// callListFiles(client)
-	callDownload(client)
+	// callDownload(client)
+	callUpload(client)
 }
 
 func callListFiles(client pb.FileServiceClient) {
@@ -46,4 +49,41 @@ func callDownload(client pb.FileServiceClient) {
 		}
 		fmt.Println(res.GetData())
 	}
+}
+
+func callUpload(client pb.FileServiceClient) {
+	filename := "sports.txt"
+	path := "/Users/takeshiwatanabe/EureWorks/udemy/protobuf/storage/" + filename
+
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatalf("failed to open file: %v¥n", err)
+	}
+	defer file.Close()
+
+	stream, err := client.Upload(context.Background())
+	if err != nil {
+		log.Fatalf("failed to invoke Upload: %v¥n", err)
+	}
+
+	buf := make([]byte, 5)
+	for {
+		n, err := file.Read(buf)
+		if err != nil {
+			log.Fatalf("failed to read file: %v¥n", err)
+		}
+		if n == 0 || err == io.EOF {
+			break
+		}
+		if sendErr := stream.Send(&pb.UploadRequest{Data: buf[:n]}); sendErr != nil {
+			log.Fatalf("failed to send chunk data: %v¥n", sendErr)
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		log.Fatalf("failed to receive response: %v¥n", err)
+	}
+	fmt.Println(res.GetSize())
 }

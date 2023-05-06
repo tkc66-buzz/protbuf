@@ -11,13 +11,15 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
 func main() {
-	// 本来ならばSSL通信を行うべきだが,ローカルでのみ動かすため,Insecureを指定する.
-	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	certFile := "/Users/takeshiwatanabe/Library/Application Support/mkcert/rootCA.pem"
+	creds, err := credentials.NewClientTLSFromFile(certFile, "")
+	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(creds))
 	if err != nil {
 		log.Fatalf("failed to listen: %v¥n", err)
 	}

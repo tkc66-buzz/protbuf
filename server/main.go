@@ -16,6 +16,7 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -142,10 +143,17 @@ func main() {
 		log.Fatalf("failed to listen: %v¥n", err)
 	}
 
-	s := grpc.NewServer(grpc.UnaryInterceptor(
-		grpc_middleware.ChainUnaryServer(
-			logging(),
-			grpc_auth.UnaryServerInterceptor(authorize))))
+	creds, err := credentials.NewClientTLSFromFile("ssl/localhost.pem", "ssl/localhost-key.pem")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	s := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.UnaryInterceptor(
+			grpc_middleware.ChainUnaryServer(
+				logging(),
+				grpc_auth.UnaryServerInterceptor(authorize))))
 	pb.RegisterFileServiceServer(s, &server{})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v¥n", err)

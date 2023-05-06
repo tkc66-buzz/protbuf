@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"protobuf/pb"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -33,6 +36,35 @@ func (s *server) ListFiles(ctx context.Context, req *pb.ListFilesRequest) (*pb.L
 		Filenames: filenames,
 	}
 	return res, nil
+}
+
+func (s *server) Download(req *pb.DownloadRequest, stream pb.FileService_DownloadServer) error {
+	fmt.Println("Download was invoked")
+	filename := req.GetFilename()
+	path := "/Users/takeshiwatanabe/EureWorks/udemy/protobuf/storage/" + filename
+
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	buf := make([]byte, 5)
+	for {
+		n, err := file.Read(buf)
+		if err != nil {
+			return err
+		}
+		if n == 0 || err == io.EOF {
+			break
+		}
+		res := &pb.DownloadResponse{Data: buf[:n]}
+		sendErr := stream.Send(res)
+		if sendErr != nil {
+			return sendErr
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
 
 func main() {

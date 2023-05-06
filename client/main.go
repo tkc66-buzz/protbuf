@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 func main() {
@@ -21,14 +22,16 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewFileServiceClient(conn)
-	// callListFiles(client)
+	callListFiles(client)
 	// callDownload(client)
 	// callUpload(client)
-	callUploadAndNotifyProgress(client)
+	// callUploadAndNotifyProgress(client)
 }
 
 func callListFiles(client pb.FileServiceClient) {
-	res, err := client.ListFiles(context.Background(), &pb.ListFilesRequest{})
+	md := metadata.New(map[string]string{"authorization": "Bearer test_token"})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	res, err := client.ListFiles(ctx, &pb.ListFilesRequest{})
 	if err != nil {
 		log.Fatalf("failed to invoke ListFiles: %v¥n", err)
 	}

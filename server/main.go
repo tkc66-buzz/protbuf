@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,6 +13,8 @@ import (
 	"protobuf/pb"
 	"time"
 
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 )
 
@@ -111,13 +114,34 @@ func (*server) UploadAndNotifuProgress(stream pb.FileService_UploadAndNotifyProg
 	}
 }
 
+func logging() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		log.Printf("gRPC method: %s, %v", info.FullMethod, req)
+		return handler(ctx, req)
+	}
+}
+
+func authorize(ctx context.Context) (context.Context, error) {
+	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
+	if err != nil {
+		return nil, err
+	}
+	if token != "test_token" {
+		return nil, errors.New("invalid token")
+	}
+	return ctx, nil
+}
+
 func main() {
 	lis, err := net.Listen("tcp", "localhost:50051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v¥n", err)
 	}
 
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.UnaryInterceptor(
+		grpc_middleware.ChainUnaryServer(
+			logging(),
+			grpc_auth.UnaryServerInterceptor(authorize))))
 	pb.RegisterFileServiceServer(s, &server{})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v¥n", err)

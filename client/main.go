@@ -23,7 +23,8 @@ func main() {
 	client := pb.NewFileServiceClient(conn)
 	// callListFiles(client)
 	// callDownload(client)
-	callUpload(client)
+	// callUpload(client)
+	callUploadAndNotifyProgress(client)
 }
 
 func callListFiles(client pb.FileServiceClient) {
@@ -86,4 +87,58 @@ func callUpload(client pb.FileServiceClient) {
 		log.Fatalf("failed to receive response: %v¥n", err)
 	}
 	fmt.Println(res.GetSize())
+}
+
+func callUploadAndNotifyProgress(client pb.FileServiceClient) {
+	filename := "sports.txt"
+	path := "/Users/takeshiwatanabe/EureWorks/udemy/protobuf/storage/" + filename
+
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatalf("failed to open file: %v¥n", err)
+	}
+	defer file.Close()
+
+	stream, err := client.UploadAndNotifyProgress(context.Background())
+	if err != nil {
+		log.Fatalf("failed to invoke UploadAndNotifyProgress: %v¥n", err)
+	}
+
+	// request
+	buf := make([]byte, 5)
+	go func() {
+		for {
+			n, err := file.Read(buf)
+			if err != nil {
+				log.Fatalf("failed to read file: %v¥n", err)
+			}
+			if n == 0 || err == io.EOF {
+				break
+			}
+			if sendErr := stream.Send(&pb.UploadAndNotifyProgressRequest{Data: buf[:n]}); sendErr != nil {
+				log.Fatalf("failed to send chunk data: %v¥n", sendErr)
+			}
+			time.Sleep(1 * time.Second)
+		}
+		if err := stream.CloseSend(); err != nil {
+			log.Fatalf("failed to close send: %v¥n", err)
+		}
+	}()
+
+	// response
+	ch := make(chan struct{})
+	go func() {
+		for {
+			res, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("failed to receive chunk data: %v¥n", err)
+			}
+			fmt.Println(res.GetMessage())
+		}
+		close(ch)
+	}()
+	<-ch
 }
